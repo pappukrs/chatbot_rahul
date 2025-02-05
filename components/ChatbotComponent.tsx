@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, PermissionsAndroid, Platform, NativeModules, NativeEventEmitter } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, PermissionsAndroid, Platform, NativeModules, NativeEventEmitter, Animated } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LottieView from 'lottie-react-native';
 
@@ -11,13 +11,25 @@ const ChatbotComponent: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [transcribedText, setTranscribedText] = useState<string>('');
   const [isListening, setIsListening] = useState<boolean>(false);
+  const animatedSoundLevel = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const subscription = voiceModuleEmitter.addListener('onPartialResults', (data) => {
       setTranscribedText(data[0]); // Update UI with partial results
     });
-    return () => subscription.remove();
-  }, []);
+    const soundLevelSubscription = voiceModuleEmitter.addListener('onSoundLevelChange', (data) => {
+      // Animate the sound level to the new value smoothly
+      Animated.timing(animatedSoundLevel, {
+        toValue: data.level, // New sound level
+        duration: 200,       // Duration of the animation in ms
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      subscription.remove();
+      soundLevelSubscription.remove();
+    };
+  }, [animatedSoundLevel]);
 
   const requestPermission = async () => {
     if (Platform.OS !== 'android') return true;
@@ -92,12 +104,28 @@ const ChatbotComponent: React.FC = () => {
             <MaterialIcons name="close" size={24} color="#fff" />
           </TouchableOpacity>
           {isListening && (
-            <LottieView
-              source={require('../assets/sound.json')}
-              autoPlay
-              loop
-              style={styles.lottieAnimation}
-            />
+            <Animated.View
+              style={[
+                styles.lottieContainer,
+                {
+                  transform: [
+                    {
+                      scale: animatedSoundLevel.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.5], // Scale the animation between 1 and 1.5
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <LottieView
+                source={require('../assets/sound.json')}
+                autoPlay
+                loop
+                style={styles.lottieAnimation}
+              />
+            </Animated.View>
           )}
         </View>
       )}
@@ -173,13 +201,15 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 50,
   },
-  lottieAnimation: {
-    width: 100,
-    height: 100,
+  lottieContainer: {
     position: 'absolute',
     bottom: 100,
     left: '50%',
     transform: [{ translateX: -50 }],
+  },
+  lottieAnimation: {
+    width: 100,
+    height: 100,
   },
 });
 
