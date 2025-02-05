@@ -49,7 +49,13 @@ class VoiceToTextModule(reactContext: ReactApplicationContext) :
     // RecognitionListener callbacks
     override fun onReadyForSpeech(params: Bundle) {}
     override fun onBeginningOfSpeech() {}
-    override fun onRmsChanged(rmsdB: Float) {}
+    override fun onRmsChanged(rmsdB: Float) {
+        // Normalize the RMS value to a level between 0 and 1
+        val normalizedLevel = (rmsdB + 2) / 10 // Adjust this formula as needed
+        sendEvent("onSoundLevelChange", Arguments.createMap().apply {
+            putDouble("level", normalizedLevel.toDouble())
+        })
+    }
     override fun onBufferReceived(buffer: ByteArray?) {}
     override fun onEndOfSpeech() {}
 
